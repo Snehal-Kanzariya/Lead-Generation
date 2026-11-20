@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/* Terracotta Intelligence — spec 005. Palette tokens come from the brief;
+   text/button shades are adjusted per theme to keep contrast >= 4.5:1. */
+:root {
+  --tc-primary: #c46d50;
+  --tc-deep: #a85139;
+  --tc-soft: #f0d2c1;
+  --tc-ivory: #f8f4ee;
+  --tc-sandstone: #d4b58b;
+  --tc-sage: #859886;
+
+  --bg: #f8f4ee;
+  --surface: #ffffff;
+  --surface-2: #f1ebe2;
+  --line: #e3d9cb;
+  --ink: #17191d;
+  --muted: #5e5b57;
+  --primary: #a85139;
+  --primary-hover: #8f412c;
+  --on-primary: #ffffff;
+  --primary-soft: #f0d2c1;
+  --accent: #c46d50;
+  --success: #3f6b4a;
+  --warning: #8a5a00;
+  --danger: #b3261e;
+  --info: #2f5d8a;
+  --chart-1: #c46d50;
+  --chart-2: #859886;
+  --chart-3: #d4b58b;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #17191d;
+  --surface: #23262a;
+  --surface-2: #303137;
+  --line: #3b3d44;
+  --ink: #f6f0e8;
+  --muted: #aaa49b;
+  --primary: #c46d50;
+  --primary-hover: #d27d60;
+  --on-primary: #17191d;
+  --primary-soft: #3a2a24;
+  --success: #9fb5a0;
+  --warning: #d4b58b;
+  --danger: #f2877f;
+  --info: #8db4de;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+
+/* Motion: short, purposeful (150–250ms); disabled for reduced-motion users. */
+.t { transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, opacity 180ms ease; }
+.lift:hover { transform: translateY(-1px); box-shadow: 0 6px 20px -10px rgba(0,0,0,.35); }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.page-in { animation: fadeUp 220ms ease both; }
+@keyframes slideIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.drawer-in { animation: slideIn 220ms ease both; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  .lift:hover { transform: none; }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
