@@ -26,6 +26,16 @@
 - [x] T21 README, .env.example, .gitignore, commit, push
 
 ## Verification status (2026-11-20)
-- Automated: 23 tests pass (`npm test`), `tsc`, `oxlint` (warnings only), production build.
-- Manual: register, add lead, drawer, pipeline, dark/light theme checked in browser.
-- NOT verified: live Claude analysis/drafting (Anthropic API credit balance was zero), phone-width layout, drag-and-drop between kanban columns, CSV import via the UI.
+- Automated: 31 tests (`npm test`), tsc, oxlint (warnings only), production build.
+- Live with Gemini free key (gemini-3.1-flash-lite): analysis, outreach draft and proposal generated successfully on a real public site in ~3s each; grounding of evidence ids, scoring, agent run logging and token counts confirmed.
+- Live discovery: OpenStreetMap public servers were at capacity during testing (best-effort); Google Places not tested (no key); Gemini search grounding returns 429 on the free key.
+- NOT verified: phone-width layout, kanban drag-and-drop, CSV import via UI, Discover and Proposal screens in a browser.
+
+## Spec 006 tasks
+- [x] T22 llm.ts provider switch + gemini client (FR-100,101; AC-100,101)
+- [x] T23 discovery lib: places + gemini search + signals (FR-102,103; AC-102)
+- [x] T24 discover routes + add-to-leads (FR-102,104; AC-103,104)
+- [x] T25 proposals table + route + investment override (FR-105,106; AC-105,106)
+- [x] T26 Discover page, proposal UI, agent panel (FR-106)
+- [x] T27 rebrand to Kiln (FR-107)
+- [x] T28 docs: README, specs index, roadmap, .env.example

@@ -69,8 +69,8 @@ test("AC-061 won revenue separate from pipeline", () => {
 
 test("AC-062 agent idle vs running reflects open runs", () => {
   const finished = { agent: "Opportunity Analyst", status: "succeeded", error: null, input_tokens: 1, output_tokens: 1, started_at: "2026-11-20T10:00:00Z", lead_id: 1 };
-  assert.equal(computeDashboard(base({ runs: [finished] })).agents[0].status, "idle");
-  assert.equal(computeDashboard(base({ runs: [{ ...finished, status: "running" }] })).agents[0].status, "running");
+  assert.equal(computeDashboard(base({ runs: [finished] })).agents.find((a) => a.name === "Opportunity Analyst")!.status, "idle");
+  assert.equal(computeDashboard(base({ runs: [{ ...finished, status: "running" }] })).agents.find((a) => a.name === "Opportunity Analyst")!.status, "running");
 });
 
 test("AC-063 stalled proposal appears in focus", () => {
@@ -88,4 +88,11 @@ test("meetings counts leads that ever reached the stage, even if Lost later", ()
   }));
   assert.equal(d.metrics.meetings, 1);
   assert.equal(d.metrics.active_deals, 0);
+});
+
+import { stripCitations } from "../lib/outreachGuard.ts";
+test("AC-043b internal citation markers are stripped from customer-facing text", () => {
+  assert.equal(stripCitations("lacks a viewport tag [4, 5, 6]. See my work [1]."), "lacks a viewport tag. See my work.");
+  assert.equal(stripCitations("The site is live (Evidence 1, 2)."), "The site is live.");
+  assert.equal(stripCitations("Plain sentence with 2 items."), "Plain sentence with 2 items.");
 });

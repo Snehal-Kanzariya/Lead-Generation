@@ -1,4 +1,4 @@
-const KEY = "sgos_token";
+const KEY = "kiln_token";
 
 export function getToken(): string | null {
   try { return localStorage.getItem(KEY); } catch { return null; }
@@ -22,7 +22,7 @@ async function raw(path: string, method: string, body?: unknown): Promise<Respon
   if (!res.ok) {
     let msg = `Request failed (${res.status})`;
     try { msg = (await res.json()).error ?? msg; } catch { /* non-json */ }
-    if (res.status === 401 && token) { setToken(null); window.dispatchEvent(new Event("sgos-logout")); }
+    if (res.status === 401 && token) { setToken(null); window.dispatchEvent(new Event("kiln-logout")); }
     throw new ApiError(res.status, msg);
   }
   return res;

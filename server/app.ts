@@ -11,10 +11,12 @@ import { parseCsv, toCsv } from "./lib/csv.ts";
 import { collectEvidence } from "./lib/evidence.ts";
 import { opportunityScore, cappedConfidence } from "./lib/scoring.ts";
 import { applyGrounding } from "./lib/grounding.ts";
-import { findManipulation } from "./lib/outreachGuard.ts";
+import { findManipulation, stripCitations } from "./lib/outreachGuard.ts";
+import { finalizeProposal } from "./lib/proposal.ts";
 import { computeDashboard } from "./lib/dashboard.ts";
-import { askJson, AiConfigError, MODEL } from "./ai/claude.ts";
-import { ANALYSIS_SYSTEM, AnalysisSchema, DRAFT_SYSTEM, DraftSchema } from "./ai/prompts.ts";
+import { askJson, AiConfigError, activeModel, isAiConfigured, requireAi, resolveProvider } from "./ai/llm.ts";
+import { discoverySource, geminiSearch, osmSearch, placesSearch, type Discovered } from "./lib/discovery.ts";
+import { ANALYSIS_SYSTEM, AnalysisSchema, DRAFT_SYSTEM, DraftSchema, PROPOSAL_SYSTEM, ProposalSchema } from "./ai/prompts.ts";
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -40,7 +42,7 @@ export function createApp(db: DatabaseSync, secret: string) {
   const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 50, standardHeaders: true, legacyHeaders: false });
   const aiLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 60, standardHeaders: true, legacyHeaders: false });
 
-  app.get("/api/health", (_req, res) => res.json({ ok: true, ai_configured: Boolean(process.env.ANTHROPIC_API_KEY?.trim()), model: MODEL() }));
+  app.get("/api/health", (_req, res) => res.json({ ok: true, ai_configured: isAiConfigured(), provider: resolveProvider(), model: activeModel(), discovery: discoverySource() }));
 
   /* ── Auth (FR-001) ── */
   const creds = z.object({ email: z.email(), password: z.string().min(8), name: z.string().min(1).max(80).optional() });
@@ -192,6 +194,7 @@ export function createApp(db: DatabaseSync, secret: string) {
       evidence: all("SELECT * FROM evidence WHERE lead_id=? ORDER BY id", lid),
       assessment: a ? { ...analysis, opportunity_score: a.opportunity_score, research_confidence: a.research_confidence, created_at: a.created_at } : null,
       portfolio: analysis?.portfolio_proof_ids?.length ? all(`SELECT * FROM portfolio_items WHERE workspace_id=? AND id IN (${analysis.portfolio_proof_ids.map(() => "?").join(",")})`, ws, ...analysis.portfolio_proof_ids) : [],
+      proposals: all("SELECT * FROM proposals WHERE lead_id=? ORDER BY id DESC", lid).map((p) => ({ ...p, sections: JSON.parse(p.sections), flags: JSON.parse(p.flags) })),
       drafts: all("SELECT * FROM drafts WHERE lead_id=? ORDER BY id DESC", lid).map((d) => ({ ...d, flags: JSON.parse(d.flags) })),
       replies: all("SELECT * FROM replies WHERE lead_id=? ORDER BY id DESC", lid),
       tasks: all("SELECT * FROM tasks WHERE lead_id=? ORDER BY done, due_date", lid),
@@ -222,7 +225,7 @@ export function createApp(db: DatabaseSync, secret: string) {
   app.delete("/api/leads/:id", (req, res) => {
     const ws = WS(res), lid = id(req);
     leadOr404(ws, lid);
-    for (const t of ["evidence", "assessments", "drafts", "replies", "tasks", "activities", "agent_runs"]) run(`DELETE FROM ${t} WHERE lead_id=? AND workspace_id=?`, lid, ws);
+    for (const t of ["evidence", "assessments", "drafts", "replies", "tasks", "activities", "agent_runs", "proposals"]) run(`DELETE FROM ${t} WHERE lead_id=? AND workspace_id=?`, lid, ws);
     run("DELETE FROM leads WHERE id=?", lid);
     res.status(204).end();
   });
@@ -267,9 +270,8 @@ export function createApp(db: DatabaseSync, secret: string) {
   catalogue("portfolio", "portfolio_items", z.object({ title: z.string().trim().min(1).max(160), url: z.string().max(300), industries: z.string().max(200), summary: z.string().max(600) }));
 
   /* ── AI helpers ── */
-  const requireAi = () => { if (!process.env.ANTHROPIC_API_KEY?.trim()) throw new AiConfigError("ANTHROPIC_API_KEY is not set on the server. Add it to .env and restart."); };
   const startRun = (ws: number, agent: string, lid: number) =>
-    Number(run("INSERT INTO agent_runs(workspace_id,agent,lead_id,status,model,prompt_version,started_at) VALUES(?,?,?,?,?,?,?)", ws, agent, lid, "running", MODEL(), PROMPT_VERSION, nowIso()).lastInsertRowid);
+    Number(run("INSERT INTO agent_runs(workspace_id,agent,lead_id,status,model,prompt_version,started_at) VALUES(?,?,?,?,?,?,?)", ws, agent, lid, "running", activeModel(), PROMPT_VERSION, nowIso()).lastInsertRowid);
   const finishRun = (rid: number, status: "succeeded" | "failed", u = { input: 0, output: 0 }, error: string | null = null) =>
     run("UPDATE agent_runs SET status=?, input_tokens=?, output_tokens=?, error=?, finished_at=? WHERE id=?", status, u.input, u.output, error, nowIso(), rid);
 
@@ -342,11 +344,13 @@ export function createApp(db: DatabaseSync, secret: string) {
         desired_outcome: analysis.desired_outcome, opener_idea: analysis.conversation_opener, PORTFOLIO: portfolio,
       });
       let { data, usage } = await askJson(DRAFT_SYSTEM, input, DraftSchema, 1500);
+      const clean = (d: typeof data) => ({ subject: stripCitations(d.subject), body: stripCitations(d.body), short_message: stripCitations(d.short_message) });
+      data = clean(data);
       let flags = findManipulation(`${data.subject} ${data.body} ${data.short_message}`);
       if (flags.length) {
         const retry = await askJson(DRAFT_SYSTEM, `${input}\n\nRewrite without these phrases: ${flags.join(", ")}. No urgency, guarantees or pressure.`, DraftSchema, 1500);
         usage = { input: usage.input + retry.usage.input, output: usage.output + retry.usage.output };
-        data = retry.data;
+        data = clean(retry.data);
         flags = findManipulation(`${data.subject} ${data.body} ${data.short_message}`);
       }
       const did = Number(run("INSERT INTO drafts(workspace_id,lead_id,subject,body,short_message,flags,created_at) VALUES(?,?,?,?,?,?,?)", ws, lid, data.subject, data.body, data.short_message, JSON.stringify(flags), nowIso()).lastInsertRowid);
@@ -400,6 +404,93 @@ export function createApp(db: DatabaseSync, secret: string) {
     activity(ws, lid, "reply", `Reply logged (${b.sentiment})`);
     advanceTo(ws, lead, "Responded");
     res.status(201).json({ ok: true });
+  });
+
+  /* ── Discovery (spec 006 FR-102..104) ── */
+  app.post("/api/discover", aiLimiter, async (req, res) => {
+    const ws = WS(res);
+    const b = z.object({ query: z.string().trim().min(2).max(100), location: z.string().trim().min(2).max(100), limit: z.number().int().min(1).max(10).default(8) }).parse(req.body);
+    const source = discoverySource();
+    if (!source) throw new HttpError(503, "No discovery source is enabled. Set GOOGLE_PLACES_API_KEY, or DISCOVERY_SOURCE=osm (free, no key) in .env.");
+    const rid = Number(run("INSERT INTO agent_runs(workspace_id,agent,status,model,prompt_version,started_at) VALUES(?,?,?,?,?,?)", ws, "Market Researcher", "running", source, PROMPT_VERSION, nowIso()).lastInsertRowid);
+    try {
+      let items: Discovered[] = [];
+      let usage = { input: 0, output: 0 };
+      if (source === "places") items = await placesSearch(b.query, b.location, b.limit);
+      else if (source === "osm") items = await osmSearch(b.query, b.location, b.limit);
+      else { const r = await geminiSearch(b.query, b.location, b.limit); items = r.items; usage = r.usage; }
+      finishRun(rid, "succeeded", usage);
+      res.json({ source, results: items.map((i) => ({ ...i, already_in_leads: Boolean(findDuplicate(ws, i.name, i.city, i.website)) })) });
+    } catch (e) {
+      finishRun(rid, "failed", undefined, (e as Error).message.slice(0, 500));
+      throw new HttpError(502, (e as Error).message.slice(0, 300));
+    }
+  });
+
+  app.post("/api/discover/add", (req, res) => {
+    const ws = WS(res);
+    const items = z.array(z.object({
+      name: z.string().min(1).max(200), website: z.string().max(300).nullish(), phone: z.string().max(60).nullish(), city: z.string().max(100).nullish(),
+      address: z.string().max(300).nullish(), source: z.enum(["places", "osm", "gemini_search"]), signals: z.array(z.string().max(300)).max(10), source_urls: z.array(z.string().max(500)).max(10),
+      rating: z.number().nullish(), review_count: z.number().nullish(),
+    })).min(1).max(25).parse(req.body.items);
+    const out = { created: 0, skipped: [] as string[] };
+    for (const i of items) {
+      const notes = [
+        `Found via discovery (${i.source === "places" ? "Google Places listing" : i.source === "osm" ? "OpenStreetMap listing" : "AI-assisted search, unverified"}).`,
+        ...(i.address ? [`Address: ${i.address}`] : []),
+        ...(i.rating ? [`Rating: ${i.rating} (${i.review_count ?? "?"} reviews)`] : []),
+        ...(i.signals.length ? ["Possible signals (hypotheses):", ...i.signals.map((s) => `- ${s}`)] : []),
+        ...(i.source_urls.length ? [`Sources: ${i.source_urls.join(", ")}`] : []),
+      ].join("\n");
+      try {
+        insertLead(ws, { name: i.name, website: i.website ?? null, phone: i.phone ?? null, city: i.city ?? null, source: i.source === "places" ? "Google Places" : i.source === "osm" ? "OpenStreetMap" : "AI search (unverified)", notes });
+        out.created++;
+      } catch (e) { if (e instanceof HttpError) out.skipped.push(i.name); else throw e; }
+    }
+    res.json(out);
+  });
+
+  /* ── Proposals (spec 006 FR-105) ── */
+  app.post("/api/leads/:id/proposal", aiLimiter, async (req, res) => {
+    const ws = WS(res), lid = id(req);
+    const lead = leadOr404(ws, lid);
+    const a = get("SELECT * FROM assessments WHERE lead_id=? ORDER BY id DESC LIMIT 1", lid);
+    if (!a) throw new HttpError(400, "Analyze this lead before generating a proposal");
+    requireAi();
+    const rid = startRun(ws, "Proposal Writer", lid);
+    try {
+      const analysis = JSON.parse(a.json);
+      const services = all("SELECT id,name,outcome,price_range FROM services WHERE workspace_id=?", ws);
+      const rec = String(analysis.recommended_service).toLowerCase();
+      const match = services.find((s) => s.name.toLowerCase() === rec) ?? services.find((s) => rec.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(rec));
+      const evidence = all("SELECT id,kind,statement,source_url,status FROM evidence WHERE lead_id=?", lid);
+      const ids: number[] = analysis.portfolio_proof_ids;
+      const portfolio = ids.length ? all(`SELECT id,title,url,summary FROM portfolio_items WHERE workspace_id=? AND id IN (${ids.map(() => "?").join(",")})`, ws, ...ids) : [];
+      const input = JSON.stringify({
+        founder: "Snehal Kanzariya", agency: "Shiv Creative Agency", lead: { name: lead.name, industry: lead.industry, city: lead.city },
+        VERIFIED_EVIDENCE: evidence, observed_issues: analysis.observed_issues, hypotheses_to_confirm: analysis.hypotheses,
+        recommended_service: analysis.recommended_service, desired_outcome: analysis.desired_outcome, success_measures: analysis.success_measures, PORTFOLIO: portfolio,
+      });
+      const { data, usage } = await askJson(PROPOSAL_SYSTEM, input, ProposalSchema, 3000);
+      const sections = finalizeProposal(data.sections, match?.price_range).map((s) => ({ ...s, body: stripCitations(s.body) }));
+      const flags = findManipulation(sections.map((s) => s.body).join(" "));
+      const pid = Number(run("INSERT INTO proposals(workspace_id,lead_id,sections,flags,created_at) VALUES(?,?,?,?,?)", ws, lid, JSON.stringify(sections), JSON.stringify(flags), nowIso()).lastInsertRowid);
+      activity(ws, lid, "proposal", "Proposal draft created for review");
+      finishRun(rid, "succeeded", usage);
+      res.status(201).json({ id: pid });
+    } catch (e) {
+      finishRun(rid, "failed", undefined, (e as Error).message.slice(0, 500));
+      if (e instanceof HttpError || e instanceof AiConfigError) throw e;
+      throw new HttpError(502, `Proposal failed: ${(e as Error).message.slice(0, 200)}`);
+    }
+  });
+  app.patch("/api/proposals/:id", (req, res) => {
+    const ws = WS(res), pid = id(req);
+    if (!get("SELECT id FROM proposals WHERE id=? AND workspace_id=?", pid, ws)) throw new HttpError(404, "Proposal not found");
+    const b = z.object({ sections: z.array(z.object({ title: z.string().max(100), body: z.string().max(5000) })).max(12) }).parse(req.body);
+    run("UPDATE proposals SET sections=?, flags=? WHERE id=?", JSON.stringify(b.sections), JSON.stringify(findManipulation(b.sections.map((s) => s.body).join(" "))), pid);
+    res.json({ ok: true });
   });
 
   /* ── Dashboard (FR-060..065) ── */

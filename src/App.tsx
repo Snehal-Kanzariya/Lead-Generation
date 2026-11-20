@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, getToken, setToken } from "./api";
+import { BRAND } from "./brand";
 import { LeadDrawer } from "./LeadDrawer";
 import { Auth, type Session } from "./pages/Auth";
 import { Dashboard } from "./pages/Dashboard";
+import { Discover } from "./pages/Discover";
 import { FollowUps } from "./pages/FollowUps";
 import { Leads } from "./pages/Leads";
 import { Outreach } from "./pages/Outreach";
@@ -12,12 +14,12 @@ import type { Dashboard as D } from "./types";
 import { AppCtx, cls, inputCls, useAsync, useToasts } from "./ui";
 
 const NAV = [
-  ["dashboard", "Command Center", "◈"], ["leads", "Leads", "◎"], ["pipeline", "Pipeline", "▦"],
+  ["dashboard", "Command Center", "◈"], ["discover", "Discover", "✦"], ["leads", "Leads", "◎"], ["pipeline", "Pipeline", "▦"],
   ["outreach", "Outreach", "✉"], ["followups", "Follow-ups", "◷"], ["settings", "Settings", "⚙"],
 ] as const;
 type Page = (typeof NAV)[number][0];
 
-const readSession = (): Session | null => { try { const s = localStorage.getItem("sgos_session"); return s && getToken() ? JSON.parse(s) : null; } catch { return null; } };
+const readSession = (): Session | null => { try { const s = localStorage.getItem("kiln_session"); return s && getToken() ? JSON.parse(s) : null; } catch { return null; } };
 const pageFromHash = (): Page => (NAV.find(([k]) => `#/${k}` === location.hash)?.[0] ?? "dashboard");
 
 function Shell({ session, onLogout }: { session: Session; onLogout: () => void }) {
@@ -36,7 +38,7 @@ function Shell({ session, onLogout }: { session: Session; onLogout: () => void }
   const toggleTheme = () => {
     const t = theme === "dark" ? "light" : "dark";
     setTheme(t); document.documentElement.dataset.theme = t;
-    try { localStorage.setItem("sgos_theme", t); } catch { /* ignore */ }
+    try { localStorage.setItem("kiln_theme", t); } catch { /* ignore */ }
   };
 
   const ctx = useMemo(() => ({ version, refresh, openLead: setOpenLeadId, openLeadId, closeLead: () => setOpenLeadId(null), toast, query }), [version, refresh, openLeadId, toast, query]);
@@ -47,8 +49,8 @@ function Shell({ session, onLogout }: { session: Session; onLogout: () => void }
       <div className="flex h-full">
         {mobileNav && <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setMobileNav(false)} />}
         <nav aria-label="Primary" className={cls("t fixed inset-y-0 left-0 z-40 flex flex-col border-r border-line bg-surface lg:static", collapsed ? "lg:w-16" : "lg:w-60", "w-60", mobileNav ? "translate-x-0" : "-translate-x-full lg:translate-x-0")}>
-          <div className="flex h-16 items-center gap-2 px-4"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary font-display font-bold text-on-primary">S</span>
-            {!collapsed && <span className="font-display font-semibold leading-tight">Shiv Growth OS</span>}</div>
+          <div className="flex h-16 items-center gap-2 px-4"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary font-display font-bold text-on-primary">{BRAND.initial}</span>
+            {!collapsed && <span className="font-display font-semibold leading-tight">{BRAND.name}</span>}</div>
           <ul className="flex-1 space-y-1 px-2 py-2">
             {NAV.map(([k, label, icon]) => (
               <li key={k}><a href={`#/${k}`} onClick={() => setMobileNav(false)} aria-current={page === k ? "page" : undefined} title={label}
@@ -73,6 +75,7 @@ function Shell({ session, onLogout }: { session: Session; onLogout: () => void }
           </header>
           <main className="flex-1 overflow-y-auto p-4 sm:p-6"><div className="mx-auto max-w-7xl">
             {page === "dashboard" && <Dashboard name={firstName} go={go} />}
+            {page === "discover" && <Discover go={go} />}
             {page === "leads" && <Leads />}
             {page === "pipeline" && <Pipeline />}
             {page === "outreach" && <Outreach />}
@@ -100,8 +103,8 @@ function AiStatus() {
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(readSession);
-  useEffect(() => { const h = () => setSession(null); addEventListener("sgos-logout", h); return () => removeEventListener("sgos-logout", h); }, []);
-  const authed = (s: Session) => { try { localStorage.setItem("sgos_session", JSON.stringify(s)); } catch { /* ignore */ } setSession(s); };
+  useEffect(() => { const h = () => setSession(null); addEventListener("kiln-logout", h); return () => removeEventListener("kiln-logout", h); }, []);
+  const authed = (s: Session) => { try { localStorage.setItem("kiln_session", JSON.stringify(s)); } catch { /* ignore */ } setSession(s); };
   const logout = () => { setToken(null); setSession(null); };
   if (!session) return <Auth onAuth={authed} />;
   return <Shell session={session} onLogout={logout} />;

@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   error TEXT, started_at TEXT NOT NULL, finished_at TEXT);
 CREATE TABLE IF NOT EXISTS services (
   id INTEGER PRIMARY KEY, workspace_id INTEGER NOT NULL, name TEXT NOT NULL, outcome TEXT NOT NULL DEFAULT '', price_range TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS proposals (
+  id INTEGER PRIMARY KEY, workspace_id INTEGER NOT NULL, lead_id INTEGER NOT NULL, sections TEXT NOT NULL, flags TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL DEFAULT 'draft', created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS portfolio_items (
   id INTEGER PRIMARY KEY, workspace_id INTEGER NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', industries TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '');
 `;

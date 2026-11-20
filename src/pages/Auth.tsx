@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, setToken } from "../api";
+import { BRAND } from "../brand";
 import { Button, ErrorNote, Field, inputCls } from "../ui";
 
 export interface Session { email: string; workspace: { id: number; name: string } }
@@ -19,9 +20,9 @@ export function Auth({ onAuth }: { onAuth: (s: Session) => void }) {
   return (
     <main className="grid min-h-full place-items-center p-4">
       <div className="page-in w-full max-w-md rounded-2xl border border-line bg-surface p-8">
-        <p className="font-display text-sm font-semibold tracking-wide text-primary">SHIV GROWTH OS</p>
+        <p className="font-display text-sm font-semibold tracking-wide text-primary">{BRAND.name.toUpperCase()}</p>
         <h1 className="mt-2 text-2xl font-bold">{mode === "login" ? "Welcome back" : "Create your workspace"}</h1>
-        <p className="mt-1 text-sm text-muted">Less uncertainty. More clarity. Better conversations.</p>
+        <p className="mt-1 text-sm text-muted">{BRAND.tagline}</p>
         <form onSubmit={submit} className="mt-6 space-y-4">
           {err && <ErrorNote message={err} />}
           {mode === "register" && <Field label="Your first name">{(id) => <input id={id} className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoComplete="given-name" />}</Field>}

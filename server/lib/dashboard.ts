@@ -20,7 +20,7 @@ const R_MEET = rank("Meeting Scheduled");
 const R_PROP = rank("Proposal Sent");
 const R_NEG = rank("Negotiation");
 
-export const AGENTS = ["Opportunity Analyst", "Outreach Specialist"] as const;
+export const AGENTS = ["Market Researcher", "Opportunity Analyst", "Outreach Specialist", "Proposal Writer"] as const;
 
 export const METRIC_DEFINITIONS: Record<string, string> = {
   researched: "Leads with at least one saved AI opportunity assessment.",

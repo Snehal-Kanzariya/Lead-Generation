@@ -1,4 +1,4 @@
-# Spec-Driven Development — Shiv Growth OS
+# Spec-Driven Development — Kiln
 
 This project is built **spec first**. Specs are the source of truth; code and tests follow them.
 
@@ -22,6 +22,7 @@ This project is built **spec first**. Specs are the source of truth; code and te
 | 003-outreach-approval | Draft → review → approve → manually mark sent |
 | 004-command-center | Dashboard, KPIs, Today's Focus, agent activity |
 | 005-design-system | Terracotta Intelligence theme, a11y, responsive |
+| 006-discovery-proposals-gemini | Gemini provider, discovery, proposals, Kiln rebrand |
 | ROADMAP | Deferred scope and 90-day plan |
 
 Traceability: `npm run test` runs tests whose names start with `AC-`.

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "./api";
+import { BRAND } from "./brand";
 import type { Draft } from "./types";
 import { Badge, Button, inputCls, useApp } from "./ui";
 
@@ -53,7 +54,7 @@ export function DraftCard({ draft, showLead = false }: { draft: Draft; showLead?
           </>
         )}
       </div>
-      {draft.status === "approved" && <p className="text-xs text-muted">Shiv Growth OS never sends messages. Send it from your own email or LinkedIn, then press “I sent this”.</p>}
+      {draft.status === "approved" && <p className="text-xs text-muted">{BRAND.name} never sends messages. Send it from your own email or LinkedIn, then press “I sent this”.</p>}
     </div>
   );
 }

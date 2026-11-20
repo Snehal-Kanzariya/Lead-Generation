@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { DraftCard } from "./DraftCard";
-import { STAGES, inr, type LeadDetail } from "./types";
+import { STAGES, inr, type LeadDetail, type Proposal } from "./types";
 import { Badge, Button, Dialog, ErrorNote, Field, ScoreRing, Spinner, inputCls, useApp, useAsync } from "./ui";
 
 const WEIGHTS: [string, string, number][] = [
@@ -22,6 +22,27 @@ function Block({ title, tag, children }: { title: string; tag?: string; children
 }
 const List = ({ items, empty }: { items: string[]; empty: string }) =>
   items.length ? <ul className="list-disc space-y-1 pl-5">{items.map((t, i) => <li key={i}>{t}</li>)}</ul> : <p className="text-muted">{empty}</p>;
+
+function ProposalView({ proposal, leadName }: { proposal: Proposal; leadName: string }) {
+  const { refresh, toast } = useApp();
+  const [sections, setSections] = useState(proposal.sections);
+  const dirty = JSON.stringify(sections) !== JSON.stringify(proposal.sections);
+  const text = `Proposal for ${leadName}\n\n${sections.map((s) => `${s.title}\n${s.body}`).join("\n\n")}`;
+  return (
+    <div className="space-y-3 rounded-xl border border-line bg-bg p-4">
+      {proposal.flags.length > 0 && <p role="alert" className="rounded-lg bg-surface2 p-2 text-sm text-warning">Review wording: {proposal.flags.join(", ")}</p>}
+      {sections.map((s, i) => (
+        <label key={s.title} className="block text-xs font-medium text-muted">{s.title}{s.title === "Investment" && " (from your catalogue, not AI)"}
+          <textarea className={`${inputCls} mt-1 min-h-20 text-ink`} value={s.body} onChange={(e) => setSections(sections.map((x, k) => (k === i ? { ...x, body: e.target.value } : x)))} />
+        </label>
+      ))}
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={!dirty} onClick={() => api(`/proposals/${proposal.id}`, "PATCH", { sections }).then(() => { toast("Proposal saved"); refresh(); }).catch((e) => toast(e.message, "err"))}>Save edits</Button>
+        <Button size="sm" variant="primary" onClick={() => navigator.clipboard?.writeText(text).then(() => toast("Proposal copied. Send it yourself."))}>Copy proposal</Button>
+      </div>
+    </div>
+  );
+}
 
 export function LeadDrawer({ id, onClose }: { id: number; onClose: () => void }) {
   const { refresh, toast } = useApp();
@@ -167,6 +188,16 @@ export function LeadDrawer({ id, onClose }: { id: number; onClose: () => void })
                 </div>
                 {replies.length > 0 && <ul className="mt-3 space-y-1 text-sm">{replies.map((r) => <li key={r.id}><Badge tone={r.sentiment === "positive" ? "success" : r.sentiment === "negative" ? "danger" : "neutral"}>{r.sentiment}</Badge> {r.text}</li>)}</ul>}
               </div>
+            </section>
+
+            <section className="space-y-3" aria-labelledby="prop">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 id="prop" className="font-display text-lg font-semibold">Proposal</h3>
+                <Button disabled={busy !== null || !a} title={!a ? "Analyze first" : undefined} onClick={() => act("proposal", () => api(`/leads/${id}/proposal`, "POST"), "Proposal draft ready for your review")}>
+                  {busy === "proposal" ? <><Spinner /> Writing…</> : data.proposals.length ? "Regenerate proposal" : "Generate proposal"}
+                </Button>
+              </div>
+              {data.proposals[0] ? <ProposalView key={data.proposals[0].id} proposal={data.proposals[0]} leadName={lead.name} /> : <p className="text-sm text-muted">A proposal draft uses only the verified evidence and your catalogue. You review, edit and send it yourself.</p>}
             </section>
 
             <section className="space-y-3" aria-labelledby="fu">

@@ -32,14 +32,14 @@ function Catalogue<T extends Row>({ title, help, path, fields, blank }: { title:
 }
 
 export function Settings() {
-  const health = useAsync(() => fetch("/api/health").then((r) => r.json() as Promise<{ ai_configured: boolean; model: string }>), []);
+  const health = useAsync(() => fetch("/api/health").then((r) => r.json() as Promise<{ ai_configured: boolean; provider: string | null; model: string; discovery: string | null }>), []);
   return (
     <div className="page-in space-y-6">
       <header><h1 className="text-2xl font-bold">Settings</h1><p className="text-sm text-muted">What the AI is allowed to recommend and cite. It can only use what is listed here.</p></header>
       <Card>
         <h2 className="font-display text-lg font-semibold">AI connection</h2>
-        {health.data && <p className="mt-2 text-sm">Server key: {health.data.ai_configured ? <Badge tone="success">configured</Badge> : <Badge tone="danger">missing</Badge>} · Model <span className="num">{health.data.model}</span></p>}
-        <p className="mt-1 text-xs text-muted">The key lives only in the server .env file and never reaches the browser.</p>
+        {health.data && <p className="mt-2 text-sm">AI key: {health.data.ai_configured ? <Badge tone="success">configured</Badge> : <Badge tone="danger">missing</Badge>} · Provider <span className="num">{health.data.provider ?? "none"}</span> · Model <span className="num">{health.data.model}</span> · Discovery <span className="num">{health.data.discovery ?? "off"}</span></p>}
+        <p className="mt-1 text-xs text-muted">Keys live only in the server .env file and never reach the browser.</p>
       </Card>
       <Catalogue<Service & Row> title="Services" help="Outcome statements and prices are hypotheses until validated with prospects." path="services"
         fields={[{ key: "name", label: "Service" }, { key: "outcome", label: "Customer outcome" }, { key: "price_range", label: "Indicative price" }]} blank={{ name: "", outcome: "", price_range: "" }} />

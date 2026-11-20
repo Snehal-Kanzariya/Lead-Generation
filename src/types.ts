@@ -23,6 +23,7 @@ export interface Draft {
   id: number; lead_id: number; lead_name?: string; subject: string; body: string; short_message: string;
   status: "draft" | "approved" | "sent" | "rejected"; flags: string[]; created_at: string; do_not_contact?: boolean;
 }
+export interface Proposal { id: number; sections: { title: string; body: string }[]; flags: string[]; created_at: string }
 export interface Task { id: number; lead_id: number | null; lead_name?: string | null; title: string; due_date: string | null; done: number }
 export interface Activity { id: number; kind: string; text: string; created_at: string; to_stage: string | null }
 export interface Reply { id: number; sentiment: string; text: string; created_at: string }
@@ -30,7 +31,7 @@ export interface Portfolio { id: number; title: string; url: string; industries:
 export interface Service { id: number; name: string; outcome: string; price_range: string }
 export interface LeadDetail {
   lead: Lead; evidence: Evidence[]; assessment: Assessment | null; portfolio: Portfolio[];
-  drafts: Draft[]; replies: Reply[]; tasks: Task[]; activities: Activity[];
+  drafts: Draft[]; replies: Reply[]; tasks: Task[]; activities: Activity[]; proposals: Proposal[];
 }
 export interface Dashboard {
   metrics: Record<string, number | null>;
